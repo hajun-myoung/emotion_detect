@@ -64,17 +64,19 @@ def draw_label_and_bars(
 ):
     x1, y1, x2, y2 = bbox
     h, w, _ = image.shape
+    base = min(w, h)
 
     # bbox
     cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
     # 대표 label
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 2
-    thickness = 2
+    font_scale = base / 1600
+    thickness = max(1, int(base / 800))
 
     label_text = top_label
     (tw, th), baseline = cv2.getTextSize(label_text, font, font_scale, thickness)
+    
 
     label_y = max(20, y1 - 8)
     cv2.rectangle(
@@ -98,14 +100,68 @@ def draw_label_and_bars(
     # 얼굴 옆 바 그래프 영역
     bar_x = min(x2 + 12, w - 170)
     bar_y = y1
-    bar_w = 100
-    row_h = 18
+    # bar_w = int(base * 0.18)       # bar 길이
+    bar_w = int(base * 0.05)       # bar 길이
+    # row_h = int(base * 0.035)      # 한 줄 높이
+    row_h = int(base * 0.02)      # 한 줄 높이
+    padding = int(base * 0.01)
 
     # 너무 아래로 길어지면 위로 조금 당김
     total_h = len(probs) * row_h
     if bar_y + total_h > h:
         bar_y = max(0, h - total_h - 5)
 
+    # for i, (name, p) in enumerate(zip(emotion_names, probs)):
+    #     cy = bar_y + i * row_h
+
+    #     # 감정 이름
+    #     cv2.putText(
+    #         image,
+    #         name,
+    #         (bar_x, cy + 12),
+    #         cv2.FONT_HERSHEY_SIMPLEX,
+    #         0.4,
+    #         (255, 255, 255),
+    #         1,
+    #         cv2.LINE_AA
+    #     )
+
+    #     # 바 배경
+    #     bg_x = bar_x + 70
+    #     bg_y1 = cy + 2
+    #     bg_y2 = cy + 14
+    #     cv2.rectangle(
+    #         image,
+    #         (bg_x, bg_y1),
+    #         (bg_x + bar_w, bg_y2),
+    #         (80, 80, 80),
+    #         -1
+    #     )
+
+    #     # 확률 바
+    #     fill_w = int(bar_w * float(p))
+    #     cv2.rectangle(
+    #         image,
+    #         (bg_x, bg_y1),
+    #         (bg_x + fill_w, bg_y2),
+    #         (0, 255, 255),
+    #         -1
+    #     )
+
+    #     # 퍼센트 텍스트
+    #     score_text = f"{p:.2f}"
+    #     cv2.putText(
+    #         image,
+    #         score_text,
+    #         (bg_x + bar_w + 8, cy + 12),
+    #         cv2.FONT_HERSHEY_SIMPLEX,
+    #         0.4,
+    #         (255, 255, 255),
+    #         1,
+    #         cv2.LINE_AA
+    #     )
+
+    # Rational size
     for i, (name, p) in enumerate(zip(emotion_names, probs)):
         cy = bar_y + i * row_h
 
@@ -113,18 +169,19 @@ def draw_label_and_bars(
         cv2.putText(
             image,
             name,
-            (bar_x, cy + 12),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.4,
+            (bar_x, cy + int(row_h * 0.7)),
+            font,
+            font_scale * 0.6,
             (255, 255, 255),
-            1,
+            thickness,
             cv2.LINE_AA
         )
 
-        # 바 배경
-        bg_x = bar_x + 70
-        bg_y1 = cy + 2
-        bg_y2 = cy + 14
+        # bar background
+        bg_x = bar_x + int(base * 0.08)
+        bg_y1 = cy + int(row_h * 0.2)
+        bg_y2 = cy + int(row_h * 0.8)
+
         cv2.rectangle(
             image,
             (bg_x, bg_y1),
@@ -133,8 +190,9 @@ def draw_label_and_bars(
             -1
         )
 
-        # 확률 바
+        # fill bar
         fill_w = int(bar_w * float(p))
+
         cv2.rectangle(
             image,
             (bg_x, bg_y1),
@@ -143,22 +201,23 @@ def draw_label_and_bars(
             -1
         )
 
-        # 퍼센트 텍스트
-        score_text = f"{p:.2f}"
+        score_percent = p * 100
+        score_text = f"{score_percent:.2f}%"
         cv2.putText(
             image,
             score_text,
-            (bg_x + bar_w + 8, cy + 12),
+            (bg_x + bar_w + 8, cy + int(row_h * 0.7)),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.4,
+            font_scale * 0.6,
             (255, 255, 255),
-            1,
+            thickness,
             cv2.LINE_AA
         )
 
 
 SRC_DIR = "./public/images/"
-IMAGE_FILENAME = "image.jpeg"
+# IMAGE_FILENAME = "image.jpeg"
+IMAGE_FILENAME = "image2.jpeg"
 
 input_file = os.path.join(SRC_DIR, IMAGE_FILENAME)
 device = "cpu"
@@ -204,5 +263,4 @@ plt.figure(figsize=(12, 8))
 plt.imshow(vis_frame)
 plt.axis("off")
 plt.show()
-plt.savefig("result.png")
 plt.imsave(os.path.join(SRC_DIR, "result.png"), vis_frame)
