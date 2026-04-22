@@ -15,7 +15,6 @@ DEFAULT_EMOTIONS = [
     "Happiness", "Neutral", "Sadness", "Surprise"
 ]
 
-
 def detect_faces(
     frame: np.ndarray,
     mtcnn: MTCNN,
@@ -215,9 +214,51 @@ def draw_label_and_bars(
         )
 
 
+
+# Helper function to get cropped region bounding box
+def get_cropped_region_bbox(
+    image: np.ndarray,
+    bbox: Tuple[int, int, int, int],
+    num_emotions: int,
+) -> Tuple[int, int, int, int]:
+    x1, y1, x2, y2 = bbox
+    h, w, _ = image.shape
+    base = min(w, h)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = base / 1600
+    thickness = max(1, int(base / 800))
+
+    # label 영역 계산
+    label_text_h = cv2.getTextSize("Happiness", font, font_scale, thickness)[0][1]
+    label_baseline = cv2.getTextSize("Happiness", font, font_scale, thickness)[1]
+    label_y = max(20, y1 - 8)
+    label_top = max(0, label_y - label_text_h - label_baseline - 6)
+
+    # bar graph 영역 계산 (draw_label_and_bars와 동일 로직)
+    bar_x = min(x2 + 12, w - 170)
+    bar_y = y1
+    bar_w = int(base * 0.05)
+    row_h = int(base * 0.02)
+    total_h = num_emotions * row_h
+
+    if bar_y + total_h > h:
+        bar_y = max(0, h - total_h - 5)
+
+    bg_x = bar_x + int(base * 0.08)
+    score_right = bg_x + bar_w + 8 + int(base * 0.12)
+
+    crop_x1 = max(0, min(x1, bar_x) - 6)
+    crop_y1 = max(0, min(y1, label_top, bar_y) - 6)
+    crop_x2 = min(w, max(x2, score_right) + 6)
+    crop_y2 = min(h, max(y2, bar_y + total_h) + 6)
+
+    return crop_x1, crop_y1, crop_x2, crop_y2
+
+
 SRC_DIR = "./public/images/"
 # IMAGE_FILENAME = "image.jpeg"
-IMAGE_FILENAME = "image2.jpeg"
+IMAGE_FILENAME = "giheon.png"
 
 input_file = os.path.join(SRC_DIR, IMAGE_FILENAME)
 device = "cpu"
@@ -241,8 +282,9 @@ fer = EmotiEffLibRecognizer(
 
 detected_faces = detect_faces(frame, mtcnn)
 vis_frame = frame.copy()
+cropped_regions = []
 
-for face_img, bbox in detected_faces:
+for idx, (face_img, bbox) in enumerate(detected_faces):
     # logits=False면 softmax 확률 반환
     emotions, scores = fer.predict_emotions(face_img, logits=False)
 
@@ -259,8 +301,45 @@ for face_img, bbox in detected_faces:
         emotion_names
     )
 
+    crop_x1, crop_y1, crop_x2, crop_y2 = get_cropped_region_bbox(
+        vis_frame,
+        bbox,
+        len(probs)
+    )
+    cropped_region = vis_frame[crop_y1:crop_y2, crop_x1:crop_x2].copy()
+    cropped_regions.append(cropped_region)
+
+    plt.imsave(
+        os.path.join(SRC_DIR, f"result_cropped_{idx}.png"),
+        cropped_region
+    )
+
+
 plt.figure(figsize=(12, 8))
 plt.imshow(vis_frame)
 plt.axis("off")
 plt.show()
 plt.imsave(os.path.join(SRC_DIR, "result.png"), vis_frame)
+
+if cropped_regions:
+    if len(cropped_regions) == 1:
+        combined_cropped = cropped_regions[0]
+    else:
+        max_width = max(region.shape[1] for region in cropped_regions)
+        padded_regions = []
+
+        for region in cropped_regions:
+            h, w, c = region.shape
+            if w < max_width:
+                pad_width = max_width - w
+                region = np.pad(
+                    region,
+                    ((0, 0), (0, pad_width), (0, 0)),
+                    mode="constant",
+                    constant_values=255,
+                )
+            padded_regions.append(region)
+
+        combined_cropped = np.vstack(padded_regions)
+
+    plt.imsave(os.path.join(SRC_DIR, "result_cropped.png"), combined_cropped)
